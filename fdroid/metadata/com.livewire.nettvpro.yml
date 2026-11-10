@@ -20,7 +20,7 @@ Repo: https://github.com/mrnomaguow/net-tv-pro
 Builds:
   - versionName: 1.0.0
     versionCode: 1
-    commit: PLACEHOLDER_FULL_COMMIT_HASH
+    commit: b32b4b03a97a6f5382100bf740cede0dafd90129
     gradle:
       - yes
     output: app/build/outputs/apk/release/app-release-unsigned.apk
