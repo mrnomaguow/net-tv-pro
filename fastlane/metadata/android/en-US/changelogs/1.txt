@@ -1,0 +1,2 @@
+- Open-source release: Apache 2.0, Gradle build from source.
+- Prev / Next channel buttons and real fullscreen video.

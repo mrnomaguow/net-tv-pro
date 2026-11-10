@@ -1,0 +1,1927 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetTV Pro 4.1 Fixed & Cloud DVR Studio</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- HLS.js CDN for live video stream decoding -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                            900: '#4c1d95',
+                        },
+                        cyanBrand: '#06b6d4',
+                        darkBg: '#0f0f12',
+                        cardBg: '#18181c',
+                        cardBorder: '#27272a'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #121215; }
+        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+
+        .glow-effect { box-shadow: 0 0 20px -5px rgba(124, 58, 237, 0.4); }
+        .glow-red { box-shadow: 0 0 15px -3px rgba(239, 68, 68, 0.6); }
+
+        .scanlines { position: relative; overflow: hidden; }
+        .scanlines::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background-size: 100% 4px;
+            z-index: 10;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        @keyframes pulse-rec {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.92); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .rec-pulse { animation: pulse-rec 1.2s infinite ease-in-out; }
+        /* v2: CSS fullscreen fallback (used when native fullscreen is unavailable, e.g. plain WebView) */
+        .nettv-css-fullscreen { position: fixed !important; inset: 0 !important; z-index: 9999 !important; width: 100vw !important; height: 100vh !important; max-height: 100vh !important; border-radius: 0 !important; background: #000 !important; }
+        .nettv-css-fullscreen video { width: 100% !important; height: 100% !important; }
+    </style>
+</head>
+<body class="bg-darkBg text-gray-100 font-sans antialiased min-h-screen flex flex-col justify-between select-none">
+
+    <!-- TOP NAVIGATION -->
+    <header class="bg-cardBg/90 backdrop-blur-md border-b border-cardBorder sticky top-0 z-40 px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-cyanBrand flex items-center justify-center text-white font-bold text-xl shadow-lg glow-effect">
+                <i class="fa-solid fa-tv"></i>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold tracking-wide flex items-center gap-2">
+                    NetTV <span class="text-xs px-2 py-0.5 rounded bg-brand-600/30 text-brand-500 font-semibold border border-brand-600/40">DVR ULTRA</span>
+                </h1>
+                <p class="text-xs text-gray-400">Live Internet Stream Hub & Cloud DVR Studio</p>
+            </div>
+        </div>
+
+        <!-- System Stats & Tabs -->
+        <div class="flex items-center space-x-4 sm:space-x-6">
+            <div id="dvrStatusBadge" class="hidden sm:flex items-center space-x-2 px-3 py-1 rounded-full bg-red-950/40 border border-red-800/50 text-red-400 text-xs font-semibold">
+                <span class="w-2 h-2 rounded-full bg-red-500 rec-pulse"></span>
+                <span id="dvrRecordingTimer">REC 00:00</span>
+            </div>
+
+            <div class="text-right hidden md:block">
+                <div id="currentTime" class="text-sm font-mono font-bold text-gray-200">00:00:00 PM</div>
+                <div id="currentDate" class="text-[10px] text-gray-400 uppercase tracking-wider">Jan 01, 2026</div>
+            </div>
+
+            <div class="flex bg-black/40 p-1 rounded-lg border border-cardBorder">
+                <button id="btnNavLive" onclick="switchMainTab('live')" class="px-3 py-1.5 text-xs font-medium rounded-md bg-brand-600 text-white transition-all shadow">
+                    <i class="fa-solid fa-play mr-1.5"></i>Live TV
+                </button>
+                <button id="btnNavSearch" onclick="switchMainTab('search')" class="px-3 py-1.5 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all">
+                    <i class="fa-solid fa-magnifying-glass mr-1.5"></i>Find Stations
+                </button>
+                <button id="btnNavRecordings" onclick="switchMainTab('recordings')" class="px-3 py-1.5 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all relative">
+                    <i class="fa-solid fa-circle-dot mr-1.5 text-red-400"></i>DVR Library
+                    <span id="recCountBadge" class="hidden absolute -top-1 -right-1 bg-brand-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">0</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN INTERFACE -->
+    <main class="flex-1 max-w-[1920px] w-full mx-auto p-3 md:p-5 flex flex-col gap-4">
+
+        <!-- LIVE STREAM TAB VIEW -->
+        <div id="tabLiveView" class="flex flex-col gap-4">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 h-auto lg:h-[580px]">
+                
+                <!-- VIDEO STAGE CONTAINER -->
+                <div id="videoStageContainer" class="lg:col-span-8 xl:col-span-9 bg-cardBg border border-cardBorder rounded-2xl overflow-hidden flex flex-col justify-between relative shadow-2xl scanlines">
+                    <div class="relative w-full h-full bg-black flex items-center justify-center overflow-hidden group">
+                        
+                        <video id="mainVideoPlayer" class="w-full h-full object-contain" autoplay muted playsinline></video>
+                        <canvas id="canvasCapture" class="hidden"></canvas>
+                        <canvas id="thumbCanvas" class="hidden"></canvas>
+
+                        <!-- Top Player Info Badges -->
+                        <div class="absolute top-4 left-4 z-20 flex flex-wrap items-center gap-2">
+                            <span class="bg-red-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded tracking-wider uppercase flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span> LIVE
+                            </span>
+                            <span id="currentChannelBadge" class="bg-black/60 backdrop-blur-md border border-white/10 text-white text-xs px-2.5 py-0.5 rounded font-mono">
+                                CH 101 - DW English
+                            </span>
+                            <span id="healthBadge" class="bg-emerald-950/80 border border-emerald-500/50 text-emerald-400 text-[10px] px-2 py-0.5 rounded font-mono flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> STREAM OK
+                            </span>
+                            <select id="corsProxySelector" onchange="changeCorsProxy(this.value)" class="bg-black/70 border border-white/20 text-xs text-yellow-400 px-2 py-0.5 rounded font-mono focus:outline-none cursor-pointer">
+                                <option value="direct">Direct Stream</option>
+                                <option value="corsproxy">CORS Proxy (corsproxy.io)</option>
+                                <option value="allorigins">AllOrigins Relay</option>
+                            </select>
+                        </div>
+
+                        <!-- Player Notification Toast -->
+                        <div id="playerToast" class="absolute top-4 right-4 z-20 transform -translate-y-5 opacity-0 transition-all duration-300 bg-brand-900/90 border border-brand-500 text-white text-xs px-3 py-2 rounded-lg backdrop-blur-md flex items-center gap-2">
+                            <i class="fa-solid fa-circle-info text-cyanBrand"></i>
+                            <span id="playerToastMsg">Notification</span>
+                        </div>
+
+                        <!-- v2: shown only in CSS-fullscreen mode -->
+                        <button id="btnExitCssFullscreen" onclick="exitCssFullscreen()" class="hidden absolute top-4 right-4 z-30 bg-black/70 border border-white/20 text-white text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-2">
+                            <i class="fa-solid fa-compress"></i> Exit fullscreen
+                        </button>
+
+                        <!-- Video Player Bottom Controls Overlay -->
+                        <div class="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-4 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-2">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-3">
+                                    <button id="btnPrevChannel" onclick="prevChannel()" title="Previous channel" class="text-white hover:text-brand-500 transition-colors px-1">
+                                        <i class="fa-solid fa-backward-step text-lg"></i>
+                                    </button>
+                                    <button id="btnPlayPause" onclick="togglePlayPause()" class="text-white hover:text-brand-500 transition-colors">
+                                        <i class="fa-solid fa-pause text-lg"></i>
+                                    </button>
+                                    <button id="btnNextChannel" onclick="nextChannel()" title="Next channel" class="text-white hover:text-brand-500 transition-colors px-1">
+                                        <i class="fa-solid fa-forward-step text-lg"></i>
+                                    </button>
+                                    <button id="btnMute" onclick="toggleMute()" class="text-white hover:text-brand-500 transition-colors">
+                                        <i class="fa-solid fa-volume-xmark"></i>
+                                    </button>
+                                    <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="1" class="w-20 accent-brand-500 cursor-pointer">
+                                    
+                                    <select id="speedSelector" onchange="changePlaybackSpeed(this.value)" class="bg-black/60 border border-white/20 text-xs text-gray-300 px-1.5 py-0.5 rounded font-mono focus:outline-none">
+                                        <option value="0.5">0.5x</option>
+                                        <option value="1.0" selected>1.0x</option>
+                                        <option value="1.25">1.25x</option>
+                                        <option value="1.5">1.5x</option>
+                                        <option value="2.0">2.0x</option>
+                                    </select>
+
+                                    <span id="nowPlayingTitle" class="text-xs text-gray-300 font-medium truncate max-w-[200px] sm:max-w-xs">
+                                        DW News Live
+                                    </span>
+                                </div>
+
+                                <div class="flex items-center space-x-2">
+                                    <button onclick="togglePiP()" class="text-white hover:text-brand-500 transition-colors px-2 py-1 bg-black/40 border border-white/10 rounded text-xs flex items-center gap-1" title="Picture-in-Picture">
+                                        <i class="fa-solid fa-window-restore"></i> <span class="hidden sm:inline">PiP</span>
+                                    </button>
+                                    <button id="btnRecordLive" onclick="toggleLiveRecording()" class="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-lg transition-all glow-red">
+                                        <i class="fa-solid fa-circle text-[10px]"></i>
+                                        <span id="lblRecordLive">RECORD LIVE</span>
+                                    </button>
+                                    <button id="btnFullscreen" onclick="toggleFullscreen()" title="Fullscreen" class="text-white hover:text-brand-500 transition-colors">
+                                        <i id="fullscreenIcon" class="fa-solid fa-expand"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- v2: always-visible channel-switch bar (no hover needed) -->
+                <div class="lg:col-span-8 xl:col-span-9 bg-cardBg border border-cardBorder rounded-2xl px-3 py-2.5 flex items-center justify-between gap-3">
+                    <button onclick="prevChannel()" class="bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 shrink-0" title="Previous channel">
+                        <i class="fa-solid fa-chevron-left"></i> <span class="hidden sm:inline">Prev</span>
+                    </button>
+                    <button onclick="nextChannel()" class="flex-1 min-w-0 text-center text-sm font-bold text-gray-100 truncate px-2" title="Tap to go to the next channel">
+                        <span id="channelSwitchLabel" class="font-mono">CH 101 - DW English</span>
+                    </button>
+                    <button onclick="nextChannel()" class="bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 shrink-0" title="Next channel">
+                        <span class="hidden sm:inline">Next</span> <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                    <button onclick="toggleFullscreen()" class="bg-zinc-800 hover:bg-zinc-700 border border-cardBorder text-gray-200 text-sm font-bold px-3 py-2.5 rounded-xl flex items-center gap-1.5 shrink-0" title="Fullscreen">
+                        <i class="fa-solid fa-expand"></i> <span class="hidden md:inline">Full screen</span>
+                    </button>
+                </div>
+
+                <!-- RIGHT SIDEBAR: CHANNEL QUICK LIST -->
+                <div class="lg:col-span-4 xl:col-span-3 bg-cardBg border border-cardBorder rounded-2xl p-3 flex flex-col h-full overflow-hidden">
+                    <div class="flex items-center justify-between mb-3 px-1">
+                        <h2 class="text-sm font-bold tracking-wide text-gray-200 flex items-center gap-2">
+                            <i class="fa-solid fa-list-ul text-brand-500"></i> Active Stations
+                            <span id="channelCount" class="text-[10px] text-gray-500 font-mono font-normal">0 Stations</span>
+                        </h2>
+                        <div class="flex items-center space-x-1.5">
+                            <button onclick="toggleFavoritesFilter()" id="btnFavFilter" class="text-xs bg-darkBg border border-cardBorder text-gray-400 hover:text-amber-400 px-2 py-1 rounded flex items-center gap-1" title="Filter Favorites">
+                                <i class="fa-solid fa-star text-[10px]"></i>
+                            </button>
+                            <button onclick="openBatchM3uModal()" class="text-xs bg-cyanBrand/20 hover:bg-cyanBrand/30 text-cyanBrand border border-cyanBrand/40 px-2 py-1 rounded flex items-center gap-1" title="Import M3U Playlist">
+                                <i class="fa-solid fa-file-import text-[10px]"></i> M3U
+                            </button>
+                            <button onclick="openAddChannelModal()" class="text-xs bg-brand-600/80 hover:bg-brand-600 text-white px-2 py-1 rounded flex items-center gap-1">
+                                <i class="fa-solid fa-plus text-[10px]"></i> Add
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="channelListContainer" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+                </div>
+
+            </div>
+
+            <!-- EPG TIMELINE GRID -->
+            <div class="bg-cardBg border border-cardBorder rounded-2xl p-4 flex flex-col gap-3">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-cardBorder pb-3">
+                    <div>
+                        <h2 class="text-sm font-bold tracking-wide text-gray-200 flex items-center gap-2">
+                            <i class="fa-regular fa-calendar-days text-cyanBrand"></i> Electronic Program Guide (EPG)
+                        </h2>
+                        <p class="text-xs text-gray-400">Schedule local recordings while this page stays open — guide times start at the current hour</p>
+                    </div>
+
+                    <div class="flex items-center space-x-3 text-xs">
+                        <span class="flex items-center gap-1 text-gray-400"><span class="w-2.5 h-2.5 rounded-full bg-brand-600 inline-block"></span> Now Playing</span>
+                        <span class="flex items-center gap-1 text-gray-400"><span class="w-2.5 h-2.5 rounded-full bg-red-600 inline-block"></span> Scheduled</span>
+                        <span class="flex items-center gap-1 text-gray-400"><span class="w-2.5 h-2.5 rounded-full bg-zinc-800 border border-zinc-700 inline-block"></span> Upcoming</span>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto w-full">
+                    <div class="min-w-[800px]">
+                        <div id="epgHeaderRow" class="grid grid-cols-12 gap-2 text-xs font-mono text-gray-400 py-1.5 border-b border-cardBorder/50 text-center">
+                            <div class="col-span-2 text-left pl-2 font-semibold text-gray-300">Channel</div>
+                            <div id="epgSlot0" class="col-span-3">--:-- - --:--</div>
+                            <div id="epgSlot1" class="col-span-3">--:-- - --:--</div>
+                            <div id="epgSlot2" class="col-span-2">--:-- - --:--</div>
+                            <div id="epgSlot3" class="col-span-2">--:-- - --:--</div>
+                        </div>
+
+                        <div id="epgRowsContainer" class="divide-y divide-cardBorder/40"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SEARCH STATIONS TAB VIEW -->
+        <div id="tabSearchView" class="hidden flex-col gap-4">
+            <div class="bg-cardBg border border-cardBorder rounded-2xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h2 class="text-base font-bold text-gray-100 flex items-center gap-2">
+                        <i class="fa-solid fa-globe text-cyanBrand"></i> Global Public Station Search
+                    </h2>
+                    <p class="text-xs text-gray-400">Browse and import public streams directly from the IPTV directory.</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="openBatchM3uModal()" class="bg-cyanBrand/20 hover:bg-cyanBrand/30 text-cyanBrand border border-cyanBrand/40 text-xs px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5 font-bold">
+                        <i class="fa-solid fa-file-code"></i> Batch Import M3U
+                    </button>
+                    <button onclick="openAddChannelModal()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5 font-bold">
+                        <i class="fa-solid fa-plus"></i> Add Custom Station URL
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-cardBg border border-cardBorder rounded-2xl p-4 flex flex-col sm:flex-row gap-3">
+                <div class="relative flex-1">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-gray-500 text-xs"></i>
+                    <input type="text" id="iptvSearchQuery" onkeyup="if(event.key==='Enter') searchPublicChannels()" placeholder="Search channels by name, topic, or country..." class="w-full bg-darkBg border border-cardBorder text-xs text-gray-200 pl-9 pr-3 py-2.5 rounded-xl focus:outline-none focus:border-brand-500">
+                </div>
+                <select id="iptvCategoryFilter" onchange="searchPublicChannels()" class="bg-darkBg border border-cardBorder text-xs text-gray-300 px-3 py-2.5 rounded-xl focus:outline-none focus:border-brand-500">
+                    <option value="">All Categories</option>
+                    <option value="news">News</option>
+                    <option value="music">Music</option>
+                    <option value="sports">Sports</option>
+                    <option value="entertainment">Entertainment</option>
+                    <option value="movies">Movies</option>
+                    <option value="science">Science</option>
+                </select>
+                <button onclick="searchPublicChannels()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-magnifying-glass"></i> Search
+                </button>
+            </div>
+
+            <div class="bg-cardBg border border-cardBorder rounded-2xl p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider">Search Results</h3>
+                    <span id="searchResultCount" class="text-xs text-gray-400">Ready</span>
+                </div>
+                
+                <div id="searchResultsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-[600px] overflow-y-auto pr-1">
+                    <div class="col-span-full py-12 text-center text-gray-500">
+                        <i class="fa-solid fa-tv text-4xl mb-3 text-gray-600"></i>
+                        <p class="text-xs">Type a keyword or choose a category above to find live channels.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DVR RECORDINGS TAB VIEW -->
+        <div id="tabRecordingsView" class="hidden flex-col gap-4">
+            <div class="bg-cardBg border border-cardBorder rounded-2xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h2 class="text-base font-bold text-gray-100 flex items-center gap-2">
+                        <i class="fa-solid fa-hard-drive text-brand-500"></i> Local & Cloud DVR Library
+                    </h2>
+                    <p class="text-xs text-gray-400">Saved on this device in browser storage. Keep this tab open for scheduled recordings.</p>
+                </div>
+
+                <div class="flex items-center space-x-3">
+                    <button onclick="exportStudioBackup()" class="bg-zinc-800 hover:bg-zinc-700 border border-cardBorder text-gray-200 text-xs px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5" title="Export Stations JSON">
+                        <i class="fa-solid fa-download text-cyanBrand"></i> Export Backup
+                    </button>
+                    <label class="bg-zinc-800 hover:bg-zinc-700 border border-cardBorder text-gray-200 text-xs px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-upload text-brand-500"></i> Import Backup
+                        <input type="file" accept=".json" onchange="importStudioBackup(event)" class="hidden">
+                    </label>
+                    <div class="bg-darkBg px-3 py-2 rounded-xl border border-cardBorder text-right">
+                        <div class="text-[10px] text-gray-400 uppercase tracking-wider">Storage Usage</div>
+                        <div id="dvrStorageUsed" class="text-xs font-mono font-bold text-cyanBrand">0 MB</div>
+                    </div>
+                    <button onclick="clearAllRecordings()" class="bg-red-950/40 hover:bg-red-900/60 border border-red-800/50 text-red-300 text-xs px-3 py-2 rounded-xl transition-colors flex items-center gap-1.5">
+                        <i class="fa-solid fa-trash-can"></i> Clear Storage
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-cardBg border border-cardBorder rounded-2xl p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-clock text-amber-500"></i> Scheduled Recording Queue
+                    </h3>
+                    <button onclick="clearFinishedSchedules()" class="text-[11px] bg-zinc-800 hover:bg-zinc-700 border border-cardBorder text-gray-300 px-2 py-1 rounded-lg">Clear finished</button>
+                </div>
+                <div id="scheduledQueueContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+            </div>
+
+            <div class="bg-cardBg border border-cardBorder rounded-2xl p-4">
+                <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-film text-brand-500"></i> Recorded Video Library
+                </h3>
+
+                <div id="recordingsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+
+                <div id="emptyRecordingsState" class="hidden flex-col items-center justify-center py-16 text-center text-gray-500">
+                    <i class="fa-solid fa-video-slash text-4xl mb-3 text-gray-600"></i>
+                    <p class="text-sm font-medium">No recorded shows found.</p>
+                    <p class="text-xs text-gray-600">Use "Record Live" or set show schedules in the EPG timeline.</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ADD CUSTOM CHANNEL MODAL -->
+    <div id="modalAddChannel" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-cardBg border border-cardBorder w-full max-w-md rounded-2xl p-5 shadow-2xl relative flex flex-col gap-4">
+            <div class="flex justify-between items-center border-b border-cardBorder pb-3">
+                <h3 class="text-sm font-bold text-gray-100 flex items-center gap-2">
+                    <i class="fa-solid fa-tv text-brand-500"></i> Add Custom Station
+                </h3>
+                <button onclick="closeAddChannelModal()" class="text-gray-400 hover:text-white">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <form onsubmit="handleManualChannelAdd(event)" class="space-y-3">
+                <div>
+                    <label class="block text-[11px] font-medium text-gray-400 mb-1">Station Name</label>
+                    <input type="text" id="newChanName" required placeholder="e.g. Global News Stream" class="w-full bg-darkBg border border-cardBorder text-xs text-gray-200 px-3 py-2 rounded-xl focus:outline-none focus:border-brand-500">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-medium text-gray-400 mb-1">Stream URL (.m3u8 HLS)</label>
+                    <input type="url" id="newChanUrl" required placeholder="https://domain.com/live.m3u8" class="w-full bg-darkBg border border-cardBorder text-xs text-gray-200 px-3 py-2 rounded-xl focus:outline-none focus:border-brand-500">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-[11px] font-medium text-gray-400 mb-1">Category</label>
+                        <input type="text" id="newChanCat" placeholder="News" class="w-full bg-darkBg border border-cardBorder text-xs text-gray-200 px-3 py-2 rounded-xl focus:outline-none focus:border-brand-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-medium text-gray-400 mb-1">Channel Number</label>
+                        <input type="number" id="newChanNum" placeholder="201" class="w-full bg-darkBg border border-cardBorder text-xs text-gray-200 px-3 py-2 rounded-xl focus:outline-none focus:border-brand-500">
+                    </div>
+                </div>
+
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeAddChannelModal()" class="px-4 py-2 text-xs text-gray-400 hover:text-white">Cancel</button>
+                    <button type="submit" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors">Add Station</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- BATCH M3U PLAYLIST MODAL -->
+    <div id="modalBatchM3u" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-cardBg border border-cardBorder w-full max-w-lg rounded-2xl p-5 shadow-2xl relative flex flex-col gap-4">
+            <div class="flex justify-between items-center border-b border-cardBorder pb-3">
+                <h3 class="text-sm font-bold text-gray-100 flex items-center gap-2">
+                    <i class="fa-solid fa-list-check text-cyanBrand"></i> Batch M3U Playlist Import
+                </h3>
+                <button onclick="closeBatchM3uModal()" class="text-gray-400 hover:text-white">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-[11px] font-medium text-gray-400 mb-1">M3U File Upload</label>
+                    <input type="file" id="m3uFileInput" accept=".m3u,.m3u8,.txt" onchange="handleM3uFileUpload(event)" class="w-full bg-darkBg border border-cardBorder text-xs text-gray-300 px-3 py-2 rounded-xl focus:outline-none file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-brand-600 file:text-white hover:file:bg-brand-700">
+                </div>
+                <div class="text-center text-xs text-gray-500 font-bold uppercase">— OR —</div>
+                <div>
+                    <label class="block text-[11px] font-medium text-gray-400 mb-1">Paste Raw M3U / M3U8 Content</label>
+                    <textarea id="m3uTextarea" rows="6" placeholder="#EXTM3U&#10;#EXTINF:-1 tvg-name=&quot;News TV&quot; group-title=&quot;News&quot;,News TV&#10;https://example.com/stream.m3u8" class="w-full bg-darkBg border border-cardBorder text-xs font-mono text-gray-200 p-3 rounded-xl focus:outline-none focus:border-cyanBrand"></textarea>
+                </div>
+
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" onclick="closeBatchM3uModal()" class="px-4 py-2 text-xs text-gray-400 hover:text-white">Cancel</button>
+                    <button type="button" onclick="parseAndImportM3u()" class="bg-cyanBrand hover:bg-cyan-600 text-black text-xs font-bold px-4 py-2 rounded-xl transition-colors">Import Playlist</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-cardBg border-t border-cardBorder px-4 py-2 text-center text-[11px] text-gray-500 flex flex-col sm:flex-row justify-between items-center gap-1">
+        <div>NetTV Pro Studio Engine v4.1 Fixed v2 Fixed</div>
+        <div class="flex items-center space-x-4">
+            <span class="flex items-center gap-1"><i class="fa-solid fa-shield-halved text-emerald-500"></i> Local Storage Active</span>
+            <span class="flex items-center gap-1"><i class="fa-solid fa-bolt text-cyanBrand"></i> HLS Decoding Active</span>
+        </div>
+    </footer>
+
+    <!-- LOGIC ARCHITECTURE -->
+    <script>
+        // Preset Verified Channels
+        const DEFAULT_CHANNELS = [
+            {
+                id: 'ch101',
+                number: '101',
+                name: 'DW English Live',
+                category: 'World News',
+                logoBg: 'bg-blue-600',
+                streamUrl: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8',
+                favorite: false,
+                epg: [
+                    { id: 'epg101_1', title: 'DW News Bulletin', timeRange: '12:00 PM - 01:00 PM', active: true },
+                    { id: 'epg101_2', title: 'Global 360 Documentary', timeRange: '01:00 PM - 02:00 PM', active: false },
+                    { id: 'epg101_3', title: 'Conflict Zone Interview', timeRange: '02:00 PM - 03:00 PM', active: false }
+                ]
+            },
+            {
+                id: 'ch102',
+                number: '102',
+                name: 'France 24 English',
+                category: 'World News',
+                logoBg: 'bg-cyan-600',
+                streamUrl: 'https://live.france24.com/hls/live/2037218/F24_EN_HI_HLS/master_5000.m3u8',
+                favorite: false,
+                epg: [
+                    { id: 'epg102_1', title: 'France 24 International', timeRange: '12:00 PM - 01:00 PM', active: true },
+                    { id: 'epg102_2', title: 'European Focus Report', timeRange: '01:00 PM - 02:00 PM', active: false }
+                ]
+            },
+            {
+                id: 'ch103',
+                number: '103',
+                name: 'NASA TV Public',
+                category: 'Science & Space',
+                logoBg: 'bg-indigo-600',
+                streamUrl: 'https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8',
+                favorite: true,
+                epg: [
+                    { id: 'epg103_1', title: 'ISS Space Station Live', timeRange: '12:00 PM - 01:00 PM', active: true },
+                    { id: 'epg103_2', title: 'Artemis Mission Briefing', timeRange: '01:00 PM - 02:00 PM', active: false }
+                ]
+            },
+            {
+                id: 'ch104',
+                number: '104',
+                name: 'Red Bull TV Sports',
+                category: 'Sports',
+                logoBg: 'bg-red-600',
+                streamUrl: 'https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master_3360.m3u8',
+                favorite: false,
+                epg: [
+                    { id: 'epg104_1', title: 'Extreme Sports World Tour', timeRange: '12:00 PM - 01:00 PM', active: true },
+                    { id: 'epg104_2', title: 'Red Bull Rampage Highlights', timeRange: '01:00 PM - 02:00 PM', active: false }
+                ]
+            },
+            {
+                id: 'ch105',
+                number: '105',
+                name: 'Blender Open Cinema',
+                category: 'Movies',
+                logoBg: 'bg-amber-600',
+                streamUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+                favorite: false,
+                epg: [
+                    { id: 'epg105_1', title: 'Big Buck Bunny Movie', timeRange: '12:00 PM - 01:00 PM', active: true }
+                ]
+            },
+            // Additional free-to-view public/news streams. Availability can vary by region/provider.
+            { id: 'ch106', number: '106', name: 'ABC News Live', category: 'US News', logoBg: 'bg-blue-700', streamUrl: 'https://abcnews-streams.akamaized.net/hls/live/2023560/abcnewshudson1/master.m3u8', favorite: true, epg: [{ id: 'epg106_1', title: 'ABC News Live', timeRange: '12:00 PM - 01:00 PM', active: true }, { id: 'epg106_2', title: 'ABC News Tonight', timeRange: '01:00 PM - 02:00 PM', active: false }] },
+            { id: 'ch107', number: '107', name: 'CBS News 24/7', category: 'US News', logoBg: 'bg-blue-500', streamUrl: 'https://cbsnews.akamaized.net/hls/live/2020607/cbsnlineup_8/master.m3u8', favorite: true, epg: [{ id: 'epg107_1', title: 'CBS News 24/7 Live', timeRange: '12:00 PM - 01:00 PM', active: true }, { id: 'epg107_2', title: 'CBS Evening Report', timeRange: '01:00 PM - 02:00 PM', active: false }] },
+            { id: 'ch108', number: '108', name: 'NBC News NOW', category: 'US News', logoBg: 'bg-indigo-600', streamUrl: 'https://d1bl6tskrpq9ze.cloudfront.net/hls/master.m3u8?ads.xumo_channelId=99984003', favorite: true, epg: [{ id: 'epg108_1', title: 'NBC News NOW Live', timeRange: '12:00 PM - 01:00 PM', active: true }, { id: 'epg108_2', title: 'NBC News Tonight', timeRange: '01:00 PM - 02:00 PM', active: false }] },
+            { id: 'ch109', number: '109', name: 'Bloomberg Television', category: 'Business News', logoBg: 'bg-orange-700', streamUrl: 'https://www.bloomberg.com/media-manifest/streams/us.m3u8', favorite: false, epg: [{ id: 'epg109_1', title: 'Bloomberg Markets', timeRange: '12:00 PM - 01:00 PM', active: true }, { id: 'epg109_2', title: 'Bloomberg Businessweek', timeRange: '01:00 PM - 02:00 PM', active: false }] },
+            { id: 'ch110', number: '110', name: 'Fox Business Preview', category: 'Business News', logoBg: 'bg-blue-800', streamUrl: 'https://247preview.foxbusiness.com/hls/live/2020026/fbnv3preview/primary.m3u8', favorite: false, epg: [{ id: 'epg110_1', title: 'Fox Business Live', timeRange: '12:00 PM - 01:00 PM', active: true }, { id: 'epg110_2', title: 'Fox Business Tonight', timeRange: '01:00 PM - 02:00 PM', active: false }] },
+            { id: 'ch111', number: '111', name: 'FOX Weather', category: 'Weather', logoBg: 'bg-sky-600', streamUrl: 'https://247wlive.foxweather.com/stream/index.m3u8', favorite: false, epg: [{ id: 'epg111_1', title: 'FOX Weather Live', timeRange: '12:00 PM - 01:00 PM', active: true }, { id: 'epg111_2', title: 'FOX Weather Weekend', timeRange: '01:00 PM - 02:00 PM', active: false }] },
+            { id: 'ch112', number: '112', name: 'PBS World', category: 'Public Television', logoBg: 'bg-violet-700', streamUrl: 'https://world.lls.pbs.org/index.m3u8', favorite: false, epg: [{ id: 'epg112_1', title: 'PBS World Live', timeRange: '12:00 PM - 01:00 PM', active: true }, { id: 'epg112_2', title: 'PBS World Documentary', timeRange: '01:00 PM - 02:00 PM', active: false }] },
+            { id: 'ch113', number: '113', name: 'NBC LX Home', category: 'Lifestyle & News', logoBg: 'bg-rose-700', streamUrl: 'https://plex-xumoent-ch485-e7l5l.fast.nbcuni.com/live/master_5.m3u8', favorite: false, epg: [{ id: 'epg113_1', title: 'NBC LX Live', timeRange: '12:00 PM - 01:00 PM', active: true }, { id: 'epg113_2', title: 'NBC LX Spotlight', timeRange: '01:00 PM - 02:00 PM', active: false }] },
+            { id: 'ch114', number: '114', name: 'Al Jazeera English', category: 'World News', logoBg: 'bg-teal-700', streamUrl: 'https://live-hls-apps-aje-fa.getaj.net/AJE/index.m3u8', favorite: false, epg: [{ id: 'epg114_1', title: 'Al Jazeera News Hour', timeRange: '12:00 PM - 01:00 PM', active: true }, { id: 'epg114_2', title: 'Al Jazeera Documentary', timeRange: '01:00 PM - 02:00 PM', active: false }] }
+        ];
+
+        let CHANNELS = [];
+        let publicIptvData = [];
+        let currentChannelIndex = 0;
+        let proxyModes = ['direct', 'corsproxy', 'allorigins'];
+        let currentProxyIndex = 0;
+        let filterFavoritesOnly = false;
+
+        let hlsInstance = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+        let recordingStartTime = 0;
+        let recordingTimerInterval = null;
+        let scheduledRecordings = [];
+        let activeScheduledRecordingId = null;
+        let currentRecordingTitle = '';
+        let schedulerInterval = null;
+        let canvasAnimFrame = null;
+
+        // IndexedDB
+        const DB_NAME = 'NetTV_DVR_DB_v3';
+        let dbInstance = null;
+
+        // --- Fixed 4.1 helpers ---
+        function esc(val) { return String(val == null ? '' : val).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+        const publicChannelStore = new Map();
+        const recordingBlobMap = new Map();
+        const createdBlobUrls = new Set();
+        let dvrTotalBytes = 0;
+        const DVR_QUOTA_BYTES = 500 * 1024 * 1024;
+        function nextChannelNumber() { let m = 100; CHANNELS.forEach(c => { const n = parseInt(c.number, 10); if (!isNaN(n) && n > m) m = n; }); return String(m + 1); }
+        function syncMuteIcon() { const v = document.getElementById('mainVideoPlayer'); const i = document.getElementById('btnMute') && document.getElementById('btnMute').querySelector('i'); if (i && v) i.className = v.muted ? 'fa-solid fa-volume-xmark' : 'fa-solid fa-volume-high'; }
+        function syncPlayPauseIcon() { const v = document.getElementById('mainVideoPlayer'); const i = document.getElementById('btnPlayPause') && document.getElementById('btnPlayPause').querySelector('i'); if (i && v) i.className = v.paused ? 'fa-solid fa-play text-lg' : 'fa-solid fa-pause text-lg'; }
+        function formatHourLabel(d) { let h = d.getHours(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return String(h).padStart(2, '0') + ':00 ' + ap; }
+        function epgColSpans(n) { if (n <= 1) return [10]; if (n === 2) return [5, 5]; if (n === 3) return [3, 3, 4]; if (n === 4) return [2, 3, 3, 2]; const base = Math.floor(10 / n); const arr = Array(n).fill(base); arr[n - 1] += 10 - base * n; return arr; }
+        function buildEpgTimes() {
+            const now = new Date(); const slots = [];
+            for (let i = 0; i < 4; i++) { const st = new Date(now); st.setHours(now.getHours() + i, 0, 0, 0); const en = new Date(st); en.setHours(st.getHours() + 1); slots.push(formatHourLabel(st) + ' - ' + formatHourLabel(en)); }
+            for (let i = 0; i < 4; i++) { const el = document.getElementById('epgSlot' + i); if (el) el.textContent = slots[i]; }
+            CHANNELS.forEach(ch => {
+                if (!Array.isArray(ch.epg) || ch.epg.length === 0) {
+                    ch.epg = [
+                        { id: 'epg_' + ch.id + '_1', title: ch.name + ' Live', timeRange: slots[0], active: true },
+                        { id: 'epg_' + ch.id + '_2', title: ch.name + ' Highlights', timeRange: slots[1], active: false }
+                    ];
+                }
+                ch.epg.forEach((p, idx) => { p.timeRange = slots[Math.min(idx, 3)]; p.active = idx === 0; });
+            });
+        }
+        function clearFinishedSchedules() {
+            scheduledRecordings = scheduledRecordings.filter(x => x.status !== 'complete' && x.status !== 'failed');
+            persistSchedules(); renderScheduledQueue(); renderEPGGrid();
+            showToast('Cleared finished schedules.');
+        }
+
+        function getProxiedStreamUrl(rawUrl) {
+            if (!rawUrl) return '';
+            const mode = proxyModes[currentProxyIndex];
+            let safeUrl = rawUrl;
+
+            if (window.location.protocol === 'https:' && safeUrl.startsWith('http://')) {
+                safeUrl = safeUrl.replace('http://', 'https://');
+            }
+
+            if (mode === 'corsproxy') {
+                // Fixed: corsproxy.io needs ?url= — the old ?<url> form returned 403.
+                // Note: proxies often still fail for HLS because relative segment URLs
+                // inside the manifest resolve against the proxy, not the real server.
+                return `https://corsproxy.io/?url=${encodeURIComponent(safeUrl)}`;
+            } else if (mode === 'allorigins') {
+                return `https://api.allorigins.win/raw?url=${encodeURIComponent(safeUrl)}`;
+            }
+            return safeUrl;
+        }
+
+        function stopCanvasFallback() {
+            if (canvasAnimFrame) {
+                cancelAnimationFrame(canvasAnimFrame);
+                canvasAnimFrame = null;
+            }
+        }
+
+        function updateHealthIndicator(isOk, text) {
+            const badge = document.getElementById('healthBadge');
+            if (isOk) {
+                badge.className = "bg-emerald-950/80 border border-emerald-500/50 text-emerald-400 text-[10px] px-2 py-0.5 rounded font-mono flex items-center gap-1";
+                badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> ${text || 'STREAM OK'}`;
+            } else {
+                badge.className = "bg-amber-950/80 border border-amber-500/50 text-amber-400 text-[10px] px-2 py-0.5 rounded font-mono flex items-center gap-1";
+                badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> ${text || 'FALLBACK CARD'}`;
+            }
+        }
+
+        function playTestPatternFallback(reason) {
+            stopCanvasFallback();
+            if (hlsInstance) {
+                hlsInstance.destroy();
+                hlsInstance = null;
+            }
+
+            updateHealthIndicator(false, "FALLBACK PATTERN");
+
+            const video = document.getElementById('mainVideoPlayer');
+            const canvas = document.getElementById('canvasCapture');
+            canvas.width = 1280;
+            canvas.height = 720;
+            const ctx = canvas.getContext('2d');
+            const channel = CHANNELS[currentChannelIndex] || { number: '100', name: 'Stream' };
+
+            const stream = canvas.captureStream(30);
+            video.srcObject = stream;
+            video.play().catch(() => {});
+
+            let frame = 0;
+            const colors = ['#000000', '#c0c0c0', '#c0c000', '#00c0c0', '#00c000', '#c000c0', '#c00000', '#0000c0'];
+
+            function render() {
+                frame++;
+                const w = canvas.width;
+                const h = canvas.height;
+
+                const barW = w / 7;
+                for (let i = 0; i < 7; i++) {
+                    ctx.fillStyle = colors[i + 1];
+                    ctx.fillRect(i * barW, 0, barW, h * 0.7);
+                }
+
+                ctx.fillStyle = '#111115';
+                ctx.fillRect(0, h * 0.7, w, h * 0.3);
+
+                ctx.strokeStyle = '#06b6d4';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                for (let x = 0; x < w; x += 10) {
+                    const y = (h * 0.85) + Math.sin((x + frame * 4) * 0.02) * 15;
+                    if (x === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 32px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(`[ STREAM OFFLINE / TEST PATTERN ]`, w / 2, h * 0.35);
+
+                ctx.font = '22px sans-serif';
+                ctx.fillText(`CH ${channel.number} - ${channel.name}`, w / 2, h * 0.45);
+                ctx.font = '14px monospace';
+                ctx.fillStyle = '#f59e0b';
+                ctx.fillText(reason || 'Stream unavailable. Try another proxy or station.', w / 2, h * 0.52);
+
+                canvasAnimFrame = requestAnimationFrame(render);
+            }
+
+            render();
+            showToast("Playing live TV test card fallback", "info");
+        }
+
+        function syncChannelSwitchLabel(text) {
+            const el = document.getElementById('channelSwitchLabel');
+            if (el) el.innerText = text;
+        }
+
+        function switchChannel(delta) {
+            if (!CHANNELS || CHANNELS.length === 0) return;
+            const next = (currentChannelIndex + delta + CHANNELS.length) % CHANNELS.length;
+            loadChannel(next);
+        }
+
+        function prevChannel() { switchChannel(-1); }
+
+        function nextChannel() { switchChannel(1); }
+
+        function loadChannel(index) {
+            if (index < 0 || index >= CHANNELS.length) return;
+
+            stopCanvasFallback();
+
+            if (isRecording) {
+                stopLiveRecording();
+                showToast("Recording stopped due to station switch.");
+            }
+
+            currentChannelIndex = index;
+            const channel = CHANNELS[index];
+            const video = document.getElementById('mainVideoPlayer');
+
+            video.srcObject = null;
+            video.pause();
+            video.removeAttribute('src');
+            video.load();
+
+            document.getElementById('currentChannelBadge').innerText = `CH ${channel.number} - ${channel.name}`;
+            const switchLabel = document.getElementById('channelSwitchLabel');
+            if (switchLabel) switchLabel.innerText = `CH ${channel.number} - ${channel.name}`;
+            document.getElementById('nowPlayingTitle').innerText = channel.epg && channel.epg[0] ? channel.epg[0].title : channel.name;
+
+            const items = document.querySelectorAll('.channel-item');
+            items.forEach((item) => {
+                if (item.dataset.index == index) {
+                    item.classList.add('border-brand-500', 'bg-brand-900/20');
+                    item.classList.remove('border-cardBorder', 'bg-darkBg');
+                } else {
+                    item.classList.remove('border-brand-500', 'bg-brand-900/20');
+                    item.classList.add('border-cardBorder', 'bg-darkBg');
+                }
+            });
+
+            if (hlsInstance) {
+                hlsInstance.destroy();
+                hlsInstance = null;
+            }
+
+            const targetUrl = getProxiedStreamUrl(channel.streamUrl);
+            showToast(`Loading: ${channel.name}`);
+            updateHealthIndicator(true, "BUFFERING...");
+
+            if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+                hlsInstance = new Hls({
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    manifestLoadingTimeOut: 15000
+                });
+
+                hlsInstance.loadSource(targetUrl);
+                hlsInstance.attachMedia(video);
+
+                hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+                    updateHealthIndicator(true, "STREAM OK");
+                    video.play().catch(() => {
+                        video.muted = true;
+                        video.play();
+                    });
+                });
+
+                hlsInstance.on(Hls.Events.ERROR, (evt, data) => {
+                    if (data.fatal) {
+                        if (currentProxyIndex < proxyModes.length - 1) {
+                            currentProxyIndex++;
+                            document.getElementById('corsProxySelector').value = proxyModes[currentProxyIndex];
+                            showToast(`Stream failed, switching to ${proxyModes[currentProxyIndex]}...`);
+                            loadChannel(currentChannelIndex);
+                        } else {
+                            playTestPatternFallback("Stream offline or restricted by remote server.");
+                        }
+                    }
+                });
+
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                if (typeof Hls === 'undefined') showToast("HLS library failed to load — using native playback. Check connection.", "info");
+                video.src = targetUrl;
+                video.addEventListener('loadedmetadata', () => {
+                    updateHealthIndicator(true, "STREAM OK");
+                    video.play();
+                }, { once: true });
+            } else {
+                playTestPatternFallback("HLS video playback unsupported on this browser.");
+            }
+        }
+
+        function changeCorsProxy(mode) {
+            currentProxyIndex = proxyModes.indexOf(mode);
+            if (currentProxyIndex === -1) currentProxyIndex = 0;
+            if (mode !== 'direct') showToast("Proxy selected — note: proxies often fail for HLS because segment URLs resolve against the proxy.", "info");
+            loadChannel(currentChannelIndex);
+        }
+
+        function changePlaybackSpeed(speed) {
+            const video = document.getElementById('mainVideoPlayer');
+            video.playbackRate = parseFloat(speed);
+            showToast(`Playback speed: ${speed}x`);
+        }
+
+        async function togglePiP() {
+            const video = document.getElementById('mainVideoPlayer');
+            try {
+                if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                } else if (document.pictureInPictureEnabled) {
+                    await video.requestPictureInPicture();
+                } else {
+                    showToast("Picture-in-Picture not supported in this browser", "error");
+                }
+            } catch (err) {
+                showToast("Failed to activate Picture-in-Picture mode", "error");
+            }
+        }
+
+        /**
+         * RECORDING ENGINE
+         */
+        function toggleLiveRecording() {
+            if (isRecording) {
+                stopLiveRecording();
+            } else {
+                startLiveRecording();
+            }
+        }
+
+        function startLiveRecording() {
+            if (!dbInstance) {
+                showToast("DVR storage unavailable — recording disabled in this browser.", "error");
+                return;
+            }
+            if (dvrTotalBytes > DVR_QUOTA_BYTES) {
+                showToast("DVR storage is over ~500 MB — delete old recordings before recording more.", "error");
+            }
+            const video = document.getElementById('mainVideoPlayer');
+            let stream = null;
+
+            if (video.captureStream) stream = video.captureStream();
+            else if (video.mozCaptureStream) stream = video.mozCaptureStream();
+
+            if (!stream) {
+                showToast("Stream recording not supported in this context.", "error");
+                return;
+            }
+
+            try {
+                recordedChunks = [];
+                let options = { mimeType: 'video/webm;codecs=vp9,opus' };
+
+                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                    if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+                        options.mimeType = 'video/webm;codecs=vp8,opus';
+                    } else {
+                        options.mimeType = 'video/webm';
+                    }
+                }
+
+                const scheduledMeta = activeScheduledRecordingId && scheduledRecordings.find(x => x.id === activeScheduledRecordingId);
+                currentRecordingTitle = scheduledMeta ? scheduledMeta.title : `${(CHANNELS[currentChannelIndex] || {}).name || 'Stream'} - Live Recording`;
+                mediaRecorder = new MediaRecorder(stream, options);
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    await saveRecordingToDVR();
+                };
+
+                mediaRecorder.start(1000);
+                isRecording = true;
+                recordingStartTime = Date.now();
+
+                document.getElementById('lblRecordLive').innerText = 'STOP RECORDING';
+                document.getElementById('btnRecordLive').classList.remove('bg-red-600', 'glow-red');
+                document.getElementById('btnRecordLive').classList.add('bg-zinc-800', 'border', 'border-red-500');
+                document.getElementById('dvrStatusBadge').classList.remove('hidden');
+
+                recordingTimerInterval = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+                    const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                    const s = String(elapsed % 60).padStart(2, '0');
+                    document.getElementById('dvrRecordingTimer').innerText = `REC ${m}:${s}`;
+                }, 1000);
+
+                showToast("Live Recording Started!", "success");
+                // Honest warning: cross-origin HLS capture often records black/silent
+                // video when the provider sends no CORS headers. Do NOT set
+                // crossOrigin="anonymous" on the video — that would break playback.
+                setTimeout(() => { if (isRecording) showToast("Note: some streams record black/silent video because the provider blocks cross-origin capture.", "info"); }, 3200);
+
+            } catch (err) {
+                showToast("Failed to initialize video recording.", "error");
+            }
+        }
+
+        function stopLiveRecording() {
+            if (!mediaRecorder || !isRecording) return;
+            mediaRecorder.stop();
+            isRecording = false;
+
+            clearInterval(recordingTimerInterval);
+            document.getElementById('lblRecordLive').innerText = 'RECORD LIVE';
+            document.getElementById('btnRecordLive').classList.add('bg-red-600', 'glow-red');
+            document.getElementById('btnRecordLive').classList.remove('bg-zinc-800', 'border', 'border-red-500');
+            document.getElementById('dvrStatusBadge').classList.add('hidden');
+
+            showToast("Recording finished! Processing video...", "info");
+        }
+
+        function generateVideoThumbnail() {
+            const video = document.getElementById('mainVideoPlayer');
+            // Fixed: separate canvas — resizing canvasCapture here used to break the test-pattern animation.
+            const canvas = document.getElementById('thumbCanvas');
+            canvas.width = 320;
+            canvas.height = 180;
+            const ctx = canvas.getContext('2d');
+            try {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                return canvas.toDataURL('image/jpeg', 0.7);
+            } catch (e) {
+                return 'https://placehold.co/320x180/18181c/7c3aed?text=DVR+Captured+Stream';
+            }
+        }
+
+        async function saveRecordingToDVR() {
+            if (!dbInstance) {
+                showToast("Could not save recording — DVR storage unavailable.", "error");
+                return;
+            }
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            if (!blob || blob.size < 10240) {
+                showToast("Recording was empty (likely a black/silent cross-origin capture) — not saved.", "error");
+                return;
+            }
+            const currentChannel = CHANNELS[currentChannelIndex] || { name: 'Stream', number: '100' };
+            const durationSecs = Math.floor((Date.now() - recordingStartTime) / 1000);
+
+            const rec = {
+                id: 'rec_' + Date.now(),
+                title: currentRecordingTitle || `${currentChannel.name} - Live Recording`,
+                channelName: currentChannel.name,
+                channelNumber: currentChannel.number,
+                timestamp: new Date().toLocaleString(),
+                duration: `${Math.floor(durationSecs / 60)}m ${durationSecs % 60}s`,
+                sizeMb: (blob.size / (1024 * 1024)).toFixed(2),
+                thumbnail: generateVideoThumbnail(),
+                blobData: blob
+            };
+
+            try {
+                const tx = dbInstance.transaction(['recordings'], 'readwrite');
+                const store = tx.objectStore('recordings');
+                store.add(rec);
+                tx.onerror = () => showToast("Could not save recording — storage full or unavailable.", "error");
+                tx.onabort = () => showToast("Could not save recording — storage full or unavailable.", "error");
+                tx.oncomplete = () => {
+                    showToast("Saved to DVR Library!", "success");
+                    refreshRecordingsGrid();
+                };
+            } catch (err) {
+                showToast("Could not save recording — storage full or unavailable.", "error");
+            }
+        }
+
+        /**
+         * SEARCH & CHANNEL MANAGEMENT
+         */
+        async function searchPublicChannels() {
+            const query = document.getElementById('iptvSearchQuery').value.toLowerCase().trim();
+            const category = document.getElementById('iptvCategoryFilter').value.toLowerCase();
+            const resultsContainer = document.getElementById('searchResultsGrid');
+            const countLabel = document.getElementById('searchResultCount');
+
+            resultsContainer.innerHTML = `<div class="col-span-full py-12 text-center text-gray-400"><i class="fa-solid fa-spinner animate-spin text-2xl mb-2 text-brand-500"></i><p class="text-xs">Fetching IPTV directory...</p></div>`;
+
+            try {
+                if (publicIptvData.length === 0) {
+                    const response = await fetch('https://iptv-org.github.io/api/channels.json');
+                    const channels = await response.json();
+                    const streamsResp = await fetch('https://iptv-org.github.io/api/streams.json');
+                    const streams = await streamsResp.json();
+
+                    const streamMap = new Map();
+                    streams.forEach(s => {
+                        if (s.url && s.url.includes('.m3u8')) streamMap.set(s.channel, s.url);
+                    });
+
+                    publicIptvData = channels
+                        .filter(c => streamMap.has(c.id) && !c.is_nsfw)
+                        .map(c => ({
+                            name: c.name,
+                            category: c.categories && c.categories.length > 0 ? c.categories[0] : 'General',
+                            country: c.country,
+                            streamUrl: streamMap.get(c.id),
+                            logo: c.logo
+                        }));
+                }
+
+                let filtered = publicIptvData.filter(c => {
+                    const matchesQuery = !query || c.name.toLowerCase().includes(query) || (c.country && c.country.toLowerCase().includes(query));
+                    const matchesCategory = !category || c.category.toLowerCase().includes(category);
+                    return matchesQuery && matchesCategory;
+                }).slice(0, 32);
+
+                countLabel.innerText = `Found ${filtered.length} stations`;
+
+                if (filtered.length === 0) {
+                    resultsContainer.innerHTML = `<div class="col-span-full py-12 text-center text-gray-500"><p class="text-xs">No matching stations found.</p></div>`;
+                    return;
+                }
+
+                resultsContainer.innerHTML = '';
+                filtered.forEach((item, idx) => {
+                    const exists = CHANNELS.some(c => c.streamUrl === item.streamUrl);
+                    const pubId = 'pub_' + Date.now() + '_' + idx + '_' + Math.random().toString(36).slice(2, 6);
+                    publicChannelStore.set(pubId, item);
+                    const card = document.createElement('div');
+                    card.className = 'bg-darkBg border border-cardBorder rounded-xl p-3 flex flex-col justify-between gap-3 hover:border-brand-500/50 transition-all';
+                    card.innerHTML = `
+                        <div class="flex items-center space-x-2.5 truncate">
+                            <div class="w-8 h-8 rounded-lg bg-zinc-800 border border-cardBorder flex items-center justify-center overflow-hidden flex-shrink-0">
+                                ${item.logo ? `<img src="${esc(item.logo)}" class="w-full h-full object-cover" onerror="this.onerror=null;this.remove()">` : `<i class="fa-solid fa-tv text-xs text-brand-500"></i>`}
+                            </div>
+                            <div class="truncate">
+                                <h4 class="text-xs font-bold text-gray-200 truncate">${esc(item.name)}</h4>
+                                <span class="text-[10px] text-gray-400 capitalize">${esc(item.category)} ${item.country ? '&bull; ' + esc(item.country) : ''}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-cardBorder/40">
+                            ${exists ? `
+                                <span class="text-[10px] bg-emerald-950 text-emerald-400 px-2 py-1 rounded font-bold border border-emerald-800/40">Added</span>
+                            ` : `
+                                <button class="add-public-btn bg-brand-600 hover:bg-brand-700 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1">
+                                    <i class="fa-solid fa-plus text-[9px]"></i> Add Station
+                                </button>
+                            `}
+                        </div>
+                    `;
+                    const addBtn = card.querySelector('.add-public-btn');
+                    if (addBtn) addBtn.addEventListener('click', () => addPublicChannelById(pubId));
+                    resultsContainer.appendChild(card);
+                });
+
+            } catch (err) {
+                resultsContainer.innerHTML = `<div class="col-span-full py-12 text-center text-red-400 text-xs">Failed to fetch public station index.</div>`;
+            }
+        }
+
+        function addPublicChannelById(pubId) {
+            const item = publicChannelStore.get(pubId);
+            if (!item) { showToast("That station is no longer available to add.", "error"); return; }
+            if (CHANNELS.some(c => c.streamUrl === item.streamUrl)) {
+                showToast("That station is already in your list.", "info");
+                return;
+            }
+            const newChan = {
+                id: 'ch_' + Date.now(),
+                number: nextChannelNumber(),
+                name: item.name,
+                category: item.category || 'General',
+                logoBg: 'bg-brand-600',
+                streamUrl: item.streamUrl,
+                favorite: false,
+                epg: [
+                    { id: 'epg_' + Date.now(), title: item.name + ' Broadcast', timeRange: '12:00 PM - 11:59 PM', active: true }
+                ]
+            };
+
+            CHANNELS.push(newChan);
+            saveChannelsToStorage();
+            renderChannelList();
+            renderEPGGrid();
+            searchPublicChannels();
+            showToast(`Added: ${item.name}`, 'success');
+        }
+        // Backwards-compatible wrapper (no longer used by inline onclick).
+        function addPublicChannel(encodedItem) {
+            try {
+                const item = JSON.parse(decodeURIComponent(encodedItem));
+                const pubId = 'pub_legacy_' + Date.now();
+                publicChannelStore.set(pubId, item);
+                addPublicChannelById(pubId);
+            } catch (e) { showToast("Could not add that station.", "error"); }
+        }
+
+        function deleteChannel(index, e) {
+            e.stopPropagation();
+            if (CHANNELS.length <= 1) {
+                showToast("Cannot delete the last station.", "error");
+                return;
+            }
+
+            const deleted = CHANNELS.splice(index, 1)[0];
+            saveChannelsToStorage();
+
+            if (currentChannelIndex >= CHANNELS.length) currentChannelIndex = CHANNELS.length - 1;
+
+            renderChannelList();
+            renderEPGGrid();
+            loadChannel(currentChannelIndex);
+            showToast(`Deleted: ${deleted.name}`);
+        }
+
+        function toggleFavorite(index, e) {
+            e.stopPropagation();
+            CHANNELS[index].favorite = !CHANNELS[index].favorite;
+            saveChannelsToStorage();
+            renderChannelList();
+            showToast(CHANNELS[index].favorite ? `Starred: ${CHANNELS[index].name}` : `Unstarred: ${CHANNELS[index].name}`);
+        }
+
+        function toggleFavoritesFilter() {
+            filterFavoritesOnly = !filterFavoritesOnly;
+            const btn = document.getElementById('btnFavFilter');
+            if (filterFavoritesOnly) {
+                btn.className = "text-xs bg-amber-500/20 border border-amber-500/40 text-amber-400 px-2 py-1 rounded flex items-center gap-1 font-bold";
+            } else {
+                btn.className = "text-xs bg-darkBg border border-cardBorder text-gray-400 hover:text-amber-400 px-2 py-1 rounded flex items-center gap-1";
+            }
+            renderChannelList();
+        }
+
+        function loadChannelsFromStorage() {
+            const saved = localStorage.getItem('nettv_user_channels');
+            if (saved) {
+                try {
+                    CHANNELS = JSON.parse(saved);
+                    if (!Array.isArray(CHANNELS)) CHANNELS = [...DEFAULT_CHANNELS];
+                    // Add newly released built-in stations to existing installs without
+                    // replacing user-added stations or their favorite settings.
+                    const existingIds = new Set(CHANNELS.map(ch => ch.id));
+                    const additions = DEFAULT_CHANNELS.filter(ch => !existingIds.has(ch.id));
+                    CHANNELS = CHANNELS.concat(additions.map(ch => ({ ...ch, epg: [...(ch.epg || [])] })));
+                    if (additions.length) saveChannelsToStorage();
+                } catch (e) {
+                    CHANNELS = [...DEFAULT_CHANNELS];
+                    saveChannelsToStorage();
+                }
+            } else {
+                CHANNELS = [...DEFAULT_CHANNELS];
+                saveChannelsToStorage();
+            }
+        }
+
+        function saveChannelsToStorage() {
+            localStorage.setItem('nettv_user_channels', JSON.stringify(CHANNELS));
+        }
+
+        function openAddChannelModal() {
+            document.getElementById('modalAddChannel').classList.remove('hidden');
+            document.getElementById('modalAddChannel').classList.add('flex');
+        }
+
+        function closeAddChannelModal() {
+            document.getElementById('modalAddChannel').classList.add('hidden');
+            document.getElementById('modalAddChannel').classList.remove('flex');
+        }
+
+        function openBatchM3uModal() {
+            document.getElementById('modalBatchM3u').classList.remove('hidden');
+            document.getElementById('modalBatchM3u').classList.add('flex');
+        }
+
+        function closeBatchM3uModal() {
+            document.getElementById('modalBatchM3u').classList.add('hidden');
+            document.getElementById('modalBatchM3u').classList.remove('flex');
+        }
+
+        function handleM3uFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                document.getElementById('m3uTextarea').value = evt.target.result;
+            };
+            reader.readAsText(file);
+        }
+
+        function parseAndImportM3u() {
+            const text = document.getElementById('m3uTextarea').value;
+            if (!text.trim()) {
+                showToast("Please paste M3U content or upload a file", "error");
+                return;
+            }
+
+            const lines = text.split('\n');
+            const existingUrls = new Set(CHANNELS.map(c => c.streamUrl));
+            let importedCount = 0;
+            let skippedCount = 0;
+            let currentName = 'Imported Station';
+            let currentCategory = 'M3U Import';
+
+            lines.forEach((rawLine) => {
+                const line = rawLine.trim();
+                if (line.startsWith('#EXTINF:')) {
+                    const nameMatch = line.match(/,(.+)$/);
+                    if (nameMatch) currentName = nameMatch[1].trim();
+
+                    const groupMatch = line.match(/group-title="([^"]+)"/i);
+                    if (groupMatch) currentCategory = groupMatch[1].trim();
+                } else if (line.startsWith('http://') || line.startsWith('https://')) {
+                    if (existingUrls.has(line)) { skippedCount++; }
+                    else {
+                        existingUrls.add(line);
+                        CHANNELS.push({
+                            id: 'ch_m3u_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                            number: nextChannelNumber(),
+                            name: currentName,
+                            category: currentCategory,
+                            logoBg: 'bg-brand-600',
+                            streamUrl: line,
+                            favorite: false,
+                            epg: [
+                                { id: 'epg_' + Date.now(), title: currentName + ' Stream', timeRange: '12:00 PM - 11:59 PM', active: true }
+                            ]
+                        });
+                        importedCount++;
+                    }
+                    // Fixed: reset BOTH name and category after each URL.
+                    currentName = 'Imported Station';
+                    currentCategory = 'M3U Import';
+                }
+                // Non-http(s) URLs are silently skipped (rtmp, etc. are not playable here).
+            });
+
+            if (importedCount > 0) {
+                saveChannelsToStorage();
+                renderChannelList();
+                renderEPGGrid();
+                closeBatchM3uModal();
+                document.getElementById('m3uTextarea').value = '';
+                const fileInput = document.getElementById('m3uFileInput');
+                if (fileInput) fileInput.value = '';
+                showToast(`Imported ${importedCount} stations from M3U playlist!${skippedCount ? ' Skipped ' + skippedCount + ' duplicate(s).' : ''}`, 'success');
+            } else if (skippedCount > 0) {
+                showToast("All stations in that playlist are already in your list.", "info");
+            } else {
+                showToast("No valid stream URLs found in M3U data", "error");
+            }
+        }
+
+        function handleManualChannelAdd(e) {
+            e.preventDefault();
+            const name = document.getElementById('newChanName').value.trim();
+            const url = document.getElementById('newChanUrl').value.trim();
+            const category = document.getElementById('newChanCat').value.trim() || 'Custom';
+            let num = document.getElementById('newChanNum').value.trim();
+
+            if (CHANNELS.some(c => c.streamUrl === url)) {
+                showToast("That stream URL is already in your list.", "info");
+                return;
+            }
+            if (!num || CHANNELS.some(c => c.number === num)) num = nextChannelNumber();
+
+            const newChan = {
+                id: 'ch_custom_' + Date.now(),
+                number: num,
+                name: name,
+                category: category,
+                logoBg: 'bg-brand-600',
+                streamUrl: url,
+                favorite: false,
+                epg: [
+                    { id: 'epg_' + Date.now(), title: name + ' Stream', timeRange: '12:00 PM - 11:59 PM', active: true }
+                ]
+            };
+
+            CHANNELS.push(newChan);
+            saveChannelsToStorage();
+            renderChannelList();
+            renderEPGGrid();
+            closeAddChannelModal();
+            loadChannel(CHANNELS.length - 1);
+            showToast("Custom Channel Added!", "success");
+
+            document.getElementById('newChanName').value = '';
+            document.getElementById('newChanUrl').value = '';
+            document.getElementById('newChanCat').value = '';
+            document.getElementById('newChanNum').value = '';
+        }
+
+        function renderChannelList() {
+            const container = document.getElementById('channelListContainer');
+            container.innerHTML = '';
+
+            const listToRender = CHANNELS.filter(ch => !filterFavoritesOnly || ch.favorite);
+
+            if (listToRender.length === 0) {
+                container.innerHTML = `<div class="text-xs text-gray-500 italic p-4 text-center">No stations found.</div>`;
+                const cc0 = document.getElementById('channelCount');
+                if (cc0) cc0.innerText = `${CHANNELS.length} Stations`;
+                return;
+            }
+
+            listToRender.forEach((ch) => {
+                const realIndex = CHANNELS.indexOf(ch);
+                const div = document.createElement('div');
+                div.dataset.index = realIndex;
+                div.className = `channel-item bg-darkBg border border-cardBorder hover:border-brand-500/50 p-2.5 rounded-xl cursor-pointer transition-all flex items-center justify-between group`;
+                div.onclick = () => loadChannel(realIndex);
+
+                div.innerHTML = `
+                    <div class="flex items-center space-x-3 truncate">
+                        <div class="w-8 h-8 rounded-lg ${esc(ch.logoBg || 'bg-brand-600')} flex items-center justify-center font-extrabold text-xs text-white shadow flex-shrink-0">
+                            ${esc(ch.number)}
+                        </div>
+                        <div class="truncate">
+                            <div class="text-xs font-bold text-gray-200 group-hover:text-brand-500 transition-colors truncate flex items-center gap-1.5">
+                                ${esc(ch.name)}
+                            </div>
+                            <div class="text-[10px] text-gray-400 truncate">${ch.epg && ch.epg[0] ? esc(ch.epg[0].title) : esc(ch.category)}</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-1.5">
+                        <button onclick="toggleFavorite(${realIndex}, event)" class="text-xs p-1 ${ch.favorite ? 'text-amber-400' : 'text-gray-600 hover:text-amber-400'}">
+                            <i class="${ch.favorite ? 'fa-solid' : 'fa-regular'} fa-star"></i>
+                        </button>
+                        <button onclick="deleteChannel(${realIndex}, event)" class="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 text-gray-500 hover:text-red-400 p-1 text-xs transition-opacity">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                        <span class="text-[10px] bg-black/40 px-2 py-0.5 rounded text-gray-400 font-mono">LIVE</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+
+            // Fixed: channelCount now exists in the sidebar header; guard anyway.
+            const cc = document.getElementById('channelCount');
+            if (cc) cc.innerText = `${CHANNELS.length} Stations`;
+        }
+
+        function renderEPGGrid() {
+            const container = document.getElementById('epgRowsContainer');
+            if (!container) return;
+            container.innerHTML = '';
+            buildEpgTimes();
+
+            CHANNELS.forEach((ch) => {
+                if (!Array.isArray(ch.epg)) ch.epg = [];
+                const spans = epgColSpans(Math.max(ch.epg.length, 1));
+                const row = document.createElement('div');
+                row.className = 'grid grid-cols-12 gap-2 py-2 items-center hover:bg-white/[0.02] transition-colors';
+
+                let rowHtml = `
+                    <div class="col-span-2 flex items-center space-x-2 pl-2 truncate">
+                        <div class="w-6 h-6 rounded ${esc(ch.logoBg || 'bg-brand-600')} flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
+                            ${esc(ch.number)}
+                        </div>
+                        <span class="text-xs font-semibold text-gray-300 truncate">${esc(ch.name)}</span>
+                    </div>
+                `;
+
+                ch.epg.forEach((epgItem, idx) => {
+                    const colSpan = 'col-span-' + spans[idx];
+                    const isNowPlaying = epgItem.active;
+                    const isScheduled = isShowScheduled(ch.id, epgItem.id);
+
+                    let bgClass = 'bg-zinc-800/60 border-zinc-700/50 text-gray-300';
+                    if (isNowPlaying) bgClass = 'bg-brand-900/40 border-brand-500/60 text-brand-300 glow-effect';
+                    if (isScheduled) bgClass = 'bg-red-950/50 border-red-500/60 text-red-300';
+
+                    rowHtml += `
+                        <div class="${colSpan} ${bgClass} border rounded-lg p-2 flex flex-col justify-between h-14 relative group overflow-hidden">
+                            <div class="flex justify-between items-start gap-1">
+                                <span class="text-xs font-bold truncate">${esc(epgItem.title)}</span>
+                                ${isNowPlaying ? '<span class="text-[9px] bg-brand-600 text-white font-black px-1.5 py-0.2 rounded">NOW</span>' : ''}
+                            </div>
+                            <div class="flex justify-between items-center text-[10px] text-gray-400 mt-1">
+                                <span>${esc(epgItem.timeRange)}</span>
+                                ${!isNowPlaying ? `
+                                    <button class="epg-schedule-btn ${isScheduled ? 'text-red-400' : 'text-gray-400 hover:text-red-400'}">
+                                        <i class="${isScheduled ? 'fa-solid fa-bell' : 'fa-regular fa-circle-dot'} text-xs"></i>
+                                    </button>
+                                ` : `<span class="text-[9px] text-cyanBrand font-mono">Playing</span>`}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                row.innerHTML = rowHtml;
+                row.querySelectorAll('.epg-schedule-btn').forEach((btn, idx) => {
+                    // Map buttons to non-active programs in order (active program has no button).
+                    const nonActive = ch.epg.filter(p => !p.active);
+                    const target = nonActive[idx];
+                    if (target) btn.addEventListener('click', (ev) => { ev.stopPropagation(); toggleScheduleRecord(ch.id, target.id, target.title, ev); });
+                });
+                container.appendChild(row);
+            });
+        }
+
+        function isShowScheduled(channelId, epgId) {
+            return scheduledRecordings.some(item => item.channelId === channelId && item.epgId === epgId);
+        }
+
+        // The built-in guide is a demo guide with time ranges, not a live EPG feed.
+        // Convert each displayed range to the next local occurrence and persist exact timestamps.
+        function getNextProgramWindow(timeRange) {
+            const match = String(timeRange || '').match(/(\d{1,2}):(\d{2})\s*(AM|PM)\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+            if (!match) return null;
+            const toMinutes = (h, m, ap) => ((parseInt(h, 10) % 12) + (ap.toUpperCase() === 'PM' ? 12 : 0)) * 60 + parseInt(m, 10);
+            const startMin = toMinutes(match[1], match[2], match[3]);
+            const endMin = toMinutes(match[4], match[5], match[6]);
+            const now = new Date();
+            const start = new Date(now);
+            start.setHours(Math.floor(startMin / 60), startMin % 60, 0, 0);
+            let duration = endMin - startMin;
+            if (duration <= 0) duration += 24 * 60;
+            const end = new Date(start);
+            end.setMinutes(end.getMinutes() + duration);
+            // Fixed: if now is INSIDE the window, record from now until it ends.
+            // Only push to tomorrow if the whole window has already passed.
+            if (now >= end) {
+                start.setDate(start.getDate() + 1);
+                end.setDate(end.getDate() + 1);
+                return { startAt: start.getTime(), endAt: end.getTime() };
+            }
+            if (now >= start) {
+                return { startAt: now.getTime(), endAt: end.getTime() };
+            }
+            return { startAt: start.getTime(), endAt: end.getTime() };
+        }
+
+        function persistSchedules() {
+            localStorage.setItem('nettv_scheduled', JSON.stringify(scheduledRecordings));
+        }
+
+        function toggleScheduleRecord(channelId, epgId, title, e) {
+            if (e) e.stopPropagation();
+            const idx = scheduledRecordings.findIndex(item => item.channelId === channelId && item.epgId === epgId);
+            if (idx >= 0) {
+                const removed = scheduledRecordings.splice(idx, 1)[0];
+                if (activeScheduledRecordingId === removed.id) {
+                    if (isRecording) stopLiveRecording();
+                    activeScheduledRecordingId = null;
+                }
+                showToast(`Cancelled schedule: ${title}`);
+            } else {
+                const channel = CHANNELS.find(ch => ch.id === channelId);
+                const program = channel && channel.epg.find(item => item.id === epgId);
+                const window = program && getNextProgramWindow(program.timeRange);
+                if (!window) {
+                    showToast("This guide entry has no usable time range.", "error");
+                    return;
+                }
+                scheduledRecordings.push({
+                    id: 'sched_' + Date.now(),
+                    channelId, epgId, title,
+                    channelName: channel ? channel.name : 'Unknown channel',
+                    startAt: window.startAt,
+                    endAt: window.endAt,
+                    status: 'scheduled',
+                    createdAt: Date.now()
+                });
+                showToast(`Scheduled for ${new Date(window.startAt).toLocaleString()}`, "success");
+            }
+            persistSchedules();
+            renderEPGGrid();
+            renderScheduledQueue();
+        }
+
+        function renderScheduledQueue() {
+            const container = document.getElementById('scheduledQueueContainer');
+            container.innerHTML = '';
+            if (scheduledRecordings.length === 0) {
+                container.innerHTML = `<div class="text-xs text-gray-500 italic col-span-full">No shows scheduled for recording.</div>`;
+                return;
+            }
+            scheduledRecordings.sort((a, b) => (a.startAt || 0) - (b.startAt || 0)).forEach((item) => {
+                const card = document.createElement('div');
+                card.className = 'bg-darkBg border border-cardBorder p-3 rounded-xl flex items-center justify-between text-xs gap-3';
+                const when = item.startAt ? new Date(item.startAt).toLocaleString() : 'Time not set';
+                const status = item.status === 'recording' ? 'RECORDING' : item.status === 'complete' ? 'COMPLETE' : 'SCHEDULED';
+                card.innerHTML = `
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2"><i class="fa-solid fa-clock text-amber-500"></i><span class="font-bold text-gray-200 truncate"></span></div>
+                        <div class="text-[10px] text-gray-500 mt-1"></div>
+                        <div class="text-[9px] text-cyan-400 mt-1">${status}</div>
+                    </div>
+                    <button class="text-gray-500 hover:text-red-400 shrink-0" title="Cancel schedule"><i class="fa-solid fa-xmark"></i></button>
+                `;
+                card.querySelector('.font-bold').textContent = item.title;
+                card.querySelector('.text-gray-500').textContent = `${item.channelName || 'Channel'} · ${when}`;
+                card.querySelector('button').onclick = () => toggleScheduleRecord(item.channelId, item.epgId, item.title, { stopPropagation(){} });
+                container.appendChild(card);
+            });
+        }
+
+        function schedulerTick() {
+            if (!dbInstance) return;
+            const now = Date.now();
+            // End any scheduled capture whose window has elapsed.
+            const active = scheduledRecordings.find(x => x.id === activeScheduledRecordingId);
+            if (active && now >= active.endAt) {
+                if (isRecording) stopLiveRecording();
+                active.status = 'complete';
+                active.completedAt = now;
+                activeScheduledRecordingId = null;
+                persistSchedules();
+                renderScheduledQueue();
+            }
+            // Start one due capture. Browser must remain open and the stream must be playable.
+            if (!isRecording && !activeScheduledRecordingId) {
+                const due = scheduledRecordings.find(x => x.status !== 'complete' && x.status !== 'failed' && x.startAt <= now && x.endAt > now);
+                if (due) {
+                    const idx = CHANNELS.findIndex(ch => ch.id === due.channelId);
+                    if (idx >= 0) {
+                        activeScheduledRecordingId = due.id;
+                        due.status = 'recording';
+                        persistSchedules();
+                        loadChannel(idx);
+                        setTimeout(() => {
+                            if (activeScheduledRecordingId === due.id && !isRecording) {
+                                startLiveRecording();
+                                if (!isRecording) {
+                                    due.status = 'failed';
+                                    activeScheduledRecordingId = null;
+                                    persistSchedules();
+                                    renderScheduledQueue();
+                                } else {
+                                    renderScheduledQueue();
+                                    showToast(`Scheduled recording started: ${due.title}`, 'success');
+                                }
+                            }
+                        }, 1800);
+                    }
+                }
+            }
+        }
+
+        function exportStudioBackup() {
+            const data = {
+                version: '4.1',
+                exportedAt: new Date().toISOString(),
+                channels: CHANNELS,
+                scheduled: scheduledRecordings,
+                note: 'Video files remain in this browser device storage and are not included in this JSON backup.'
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `nettv_backup_${Date.now()}.json`;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1500);
+            showToast("Exported station configuration JSON", "success");
+        }
+
+        function importStudioBackup(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const data = JSON.parse(evt.target.result);
+                    if (!data.channels || !Array.isArray(data.channels) || !data.channels.every(c => c && typeof c === 'object' && c.name && c.streamUrl)) {
+                        showToast("Backup file is invalid — channels were not replaced.", "error");
+                        return;
+                    }
+                    CHANNELS = data.channels;
+                    saveChannelsToStorage();
+                    if (data.scheduled && Array.isArray(data.scheduled)) {
+                        const now = Date.now();
+                        scheduledRecordings = data.scheduled.filter(x => x && x.id && x.channelId && x.epgId && x.startAt && x.endAt && (x.endAt > now || x.status === 'complete'));
+                        localStorage.setItem('nettv_scheduled', JSON.stringify(scheduledRecordings));
+                    }
+                    renderChannelList();
+                    renderEPGGrid();
+                    renderScheduledQueue();
+                    loadChannel(0);
+                    showToast("Successfully restored studio configuration!", "success");
+                } catch (err) {
+                    showToast("Failed to parse backup file", "error");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        async function refreshRecordingsGrid() {
+            if (!dbInstance) {
+                const el = document.getElementById('dvrStorageUsed');
+                if (el) el.innerText = 'N/A';
+                return;
+            }
+
+            const tx = dbInstance.transaction(['recordings'], 'readonly');
+            const store = tx.objectStore('recordings');
+            const req = store.getAll();
+
+            req.onsuccess = () => {
+                const recordings = req.result;
+                const grid = document.getElementById('recordingsGrid');
+                const emptyState = document.getElementById('emptyRecordingsState');
+                const badge = document.getElementById('recCountBadge');
+
+                // Fixed: revoke previously created blob URLs before rebuilding (was a leak).
+                createdBlobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} });
+                createdBlobUrls.clear();
+                recordingBlobMap.clear();
+
+                grid.innerHTML = '';
+                let totalBytes = 0;
+                recordings.forEach(r => totalBytes += (r.blobData ? r.blobData.size : 0));
+                dvrTotalBytes = totalBytes;
+                document.getElementById('dvrStorageUsed').innerText = `${(totalBytes / (1024 * 1024)).toFixed(1)} MB`;
+
+                if (recordings.length === 0) {
+                    emptyState.classList.remove('hidden');
+                    emptyState.classList.add('flex');
+                    badge.classList.add('hidden');
+                    return;
+                }
+
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+                badge.innerText = recordings.length;
+                badge.classList.remove('hidden');
+
+                recordings.reverse().forEach(rec => {
+                    const blobUrl = URL.createObjectURL(rec.blobData);
+                    createdBlobUrls.add(blobUrl);
+                    recordingBlobMap.set(rec.id, blobUrl);
+                    const card = document.createElement('div');
+                    card.className = 'bg-darkBg border border-cardBorder rounded-xl overflow-hidden hover:border-brand-500/50 transition-all flex flex-col justify-between group';
+
+                    card.innerHTML = `
+                        <div>
+                            <div class="relative w-full h-36 bg-black">
+                                <img src="${esc(rec.thumbnail)}" class="w-full h-full object-cover" alt="thumb">
+                                <button class="dvr-play-btn absolute inset-0 m-auto w-10 h-10 rounded-full bg-brand-600/90 text-white flex items-center justify-center glow-effect">
+                                    <i class="fa-solid fa-play ml-0.5"></i>
+                                </button>
+                                <span class="absolute bottom-2 right-2 bg-black/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded">${esc(rec.duration)}</span>
+                            </div>
+                            <div class="p-3">
+                                <h4 class="text-xs font-bold text-gray-200 truncate">${esc(rec.title)}</h4>
+                                <div class="text-[10px] text-gray-400 mt-1 flex justify-between">
+                                    <span>CH ${esc(rec.channelNumber)}</span>
+                                    <span>${esc(rec.timestamp)}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="px-3 pb-3 pt-1 border-t border-cardBorder/40 flex items-center justify-between text-xs">
+                            <span class="text-[10px] font-mono text-cyanBrand">${esc(rec.sizeMb)} MB</span>
+                            <div class="flex items-center space-x-2">
+                                <a href="${blobUrl}" download="${esc(rec.title).replace(/\s+/g, '_')}.webm" class="text-gray-400 hover:text-white" title="Download">
+                                    <i class="fa-solid fa-download"></i>
+                                </a>
+                                <button class="dvr-delete-btn text-gray-400 hover:text-red-400" title="Delete">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    card.querySelector('.dvr-play-btn').addEventListener('click', () => playDVRBlob(rec.id, rec.title));
+                    card.querySelector('.dvr-delete-btn').addEventListener('click', () => deleteRecording(rec.id));
+                    grid.appendChild(card);
+                });
+            };
+        }
+
+        function playDVRBlob(recIdOrUrl, title) {
+            if (isRecording) stopLiveRecording();
+            stopCanvasFallback();
+            switchMainTab('live');
+            const video = document.getElementById('mainVideoPlayer');
+
+            if (hlsInstance) {
+                hlsInstance.destroy();
+                hlsInstance = null;
+            }
+
+            let blobUrl = recIdOrUrl;
+            if (recordingBlobMap.has(recIdOrUrl)) blobUrl = recordingBlobMap.get(recIdOrUrl);
+            video.srcObject = null;
+            video.removeAttribute('src');
+            video.load();
+            video.src = blobUrl;
+            video.muted = false;
+            syncMuteIcon();
+            video.play().catch(() => {});
+            document.getElementById('currentChannelBadge').innerText = `DVR REPLAY`;
+            const dvrSwitchLabel = document.getElementById('channelSwitchLabel');
+            if (dvrSwitchLabel) dvrSwitchLabel.innerText = `DVR REPLAY - ${title}`;
+            document.getElementById('nowPlayingTitle').innerText = title;
+            syncPlayPauseIcon();
+            showToast(`Playing DVR Video: ${title}`);
+        }
+
+        function deleteRecording(id) {
+            if (!dbInstance) { showToast("DVR storage unavailable.", "error"); return; }
+            if (recordingBlobMap.has(id)) {
+                try { URL.revokeObjectURL(recordingBlobMap.get(id)); } catch (e) {}
+                createdBlobUrls.delete(recordingBlobMap.get(id));
+                recordingBlobMap.delete(id);
+            }
+            const tx = dbInstance.transaction(['recordings'], 'readwrite');
+            tx.objectStore('recordings').delete(id);
+            tx.onerror = () => showToast("Could not delete recording.", "error");
+            tx.oncomplete = () => {
+                showToast("Recording deleted.");
+                refreshRecordingsGrid();
+            };
+        }
+
+        function clearAllRecordings() {
+            if (!dbInstance) { showToast("DVR storage unavailable.", "error"); return; }
+            if (!confirm("Clear all video recordings from storage?")) return;
+            createdBlobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) {} });
+            createdBlobUrls.clear();
+            recordingBlobMap.clear();
+            const tx = dbInstance.transaction(['recordings'], 'readwrite');
+            tx.objectStore('recordings').clear();
+            tx.onerror = () => showToast("Could not clear storage.", "error");
+            tx.oncomplete = () => {
+                showToast("Storage cleared.");
+                refreshRecordingsGrid();
+            };
+        }
+
+        function switchMainTab(tab) {
+            const liveTab = document.getElementById('tabLiveView');
+            const searchTab = document.getElementById('tabSearchView');
+            const recTab = document.getElementById('tabRecordingsView');
+            const btnLive = document.getElementById('btnNavLive');
+            const btnSearch = document.getElementById('btnNavSearch');
+            const btnRec = document.getElementById('btnNavRecordings');
+
+            liveTab.classList.add('hidden');
+            searchTab.classList.add('hidden');
+            recTab.classList.add('hidden');
+            recTab.classList.remove('flex');
+
+            btnLive.className = "px-3 py-1.5 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all";
+            btnSearch.className = "px-3 py-1.5 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all";
+            btnRec.className = "px-3 py-1.5 text-xs font-medium rounded-md text-gray-400 hover:text-white transition-all relative";
+
+            if (tab === 'live') {
+                liveTab.classList.remove('hidden');
+                btnLive.className = "px-3 py-1.5 text-xs font-medium rounded-md bg-brand-600 text-white transition-all shadow";
+            } else if (tab === 'search') {
+                searchTab.classList.remove('hidden');
+                btnSearch.className = "px-3 py-1.5 text-xs font-medium rounded-md bg-brand-600 text-white transition-all shadow";
+                if (publicIptvData.length === 0) searchPublicChannels();
+            } else {
+                recTab.classList.remove('hidden');
+                recTab.classList.add('flex');
+                btnRec.className = "px-3 py-1.5 text-xs font-medium rounded-md bg-brand-600 text-white transition-all shadow relative";
+                refreshRecordingsGrid();
+            }
+        }
+
+        function togglePlayPause() {
+            const video = document.getElementById('mainVideoPlayer');
+            const btnIcon = document.getElementById('btnPlayPause').querySelector('i');
+            if (video.paused) {
+                video.play();
+                btnIcon.className = 'fa-solid fa-pause text-lg';
+            } else {
+                video.pause();
+                btnIcon.className = 'fa-solid fa-play text-lg';
+            }
+        }
+
+        function toggleMute() {
+            const video = document.getElementById('mainVideoPlayer');
+            const btnIcon = document.getElementById('btnMute').querySelector('i');
+            video.muted = !video.muted;
+            syncMuteIcon();
+        }
+
+        function isCssFullscreen() {
+            const stage = document.getElementById('videoStageContainer');
+            return !!(stage && stage.classList.contains('nettv-css-fullscreen'));
+        }
+
+        function enterCssFullscreen() {
+            const stage = document.getElementById('videoStageContainer');
+            if (!stage) return;
+            stage.classList.add('nettv-css-fullscreen');
+            const btn = document.getElementById('btnExitCssFullscreen');
+            if (btn) btn.classList.remove('hidden');
+            syncFullscreenIcon();
+        }
+
+        function exitCssFullscreen() {
+            const stage = document.getElementById('videoStageContainer');
+            if (stage) stage.classList.remove('nettv-css-fullscreen');
+            const btn = document.getElementById('btnExitCssFullscreen');
+            if (btn) btn.classList.add('hidden');
+            syncFullscreenIcon();
+        }
+
+        function syncFullscreenIcon() {
+            const icon = document.getElementById('fullscreenIcon');
+            if (!icon) return;
+            const active = !!(document.fullscreenElement || document.webkitFullscreenElement || isCssFullscreen());
+            icon.className = active ? 'fa-solid fa-compress' : 'fa-solid fa-expand';
+        }
+
+        async function toggleFullscreen() {
+            if (isCssFullscreen()) { exitCssFullscreen(); return; }
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                try {
+                    if (document.exitFullscreen) await document.exitFullscreen();
+                    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+                } catch (e) { /* fall through to icon sync */ }
+                syncFullscreenIcon();
+                return;
+            }
+            const video = document.getElementById('mainVideoPlayer');
+            if (!video) return;
+            try {
+                let p = null;
+                if (video.requestFullscreen) p = video.requestFullscreen();
+                else if (video.webkitRequestFullscreen) p = video.webkitRequestFullscreen();
+                else if (video.mozRequestFullScreen) p = video.mozRequestFullScreen();
+                if (p && p.catch) await p;
+                // Some WebViews swallow the request silently: if no native
+                // fullscreen actually started, fall back to CSS fullscreen.
+                if (!document.fullscreenElement && !document.webkitFullscreenElement) enterCssFullscreen();
+            } catch (e) {
+                enterCssFullscreen();
+            }
+            syncFullscreenIcon();
+        }
+
+        document.addEventListener('fullscreenchange', syncFullscreenIcon);
+        document.addEventListener('webkitfullscreenchange', syncFullscreenIcon);
+
+        function showToast(msg, type = 'info') {
+            const toast = document.getElementById('playerToast');
+            document.getElementById('playerToastMsg').innerText = msg;
+
+            toast.classList.remove('-translate-y-5', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.add('-translate-y-5', 'opacity-0');
+                toast.classList.remove('translate-y-0', 'opacity-100');
+            }, 3000);
+        }
+
+        // Initialize App — each step is isolated so one render failure cannot abort the rest (Fixed 4.1).
+        function initApp(dvrAvailable) {
+            loadChannelsFromStorage();
+            const savedSched = localStorage.getItem('nettv_scheduled');
+            if (savedSched) {
+                try { scheduledRecordings = JSON.parse(savedSched); } catch(err){}
+            }
+            // Reconcile old schedules created by previous app versions.
+            scheduledRecordings = scheduledRecordings.filter(x => x && x.id && x.channelId && x.epgId);
+            scheduledRecordings.forEach(x => { if (!x.startAt || !x.endAt) { const ch = CHANNELS.find(c => c.id === x.channelId); const pg = ch && Array.isArray(ch.epg) && ch.epg.find(p => p.id === x.epgId); const w = pg && getNextProgramWindow(pg.timeRange); if (w) Object.assign(x, w, { status: 'scheduled' }); } });
+            persistSchedules();
+            const steps = [
+                () => renderChannelList(),
+                () => renderEPGGrid(),
+                () => renderScheduledQueue(),
+                () => loadChannel(0),
+            ];
+            steps.forEach(fn => { try { fn(); } catch (e) { console.error('Init step failed:', e); } });
+            if (!schedulerInterval) schedulerInterval = setInterval(schedulerTick, 1000);
+            if (!dvrAvailable) showToast("DVR storage unavailable in this browser — live TV still works, recording is disabled.", "error");
+        }
+        window.addEventListener('DOMContentLoaded', () => {
+            try {
+                const req = indexedDB.open(DB_NAME, 1);
+                req.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('recordings')) {
+                        db.createObjectStore('recordings', { keyPath: 'id' });
+                    }
+                };
+                req.onsuccess = (e) => {
+                    dbInstance = e.target.result;
+                    initApp(true);
+                };
+                req.onerror = () => { dbInstance = null; initApp(false); };
+                req.onblocked = () => { dbInstance = null; initApp(false); };
+            } catch (e) {
+                dbInstance = null;
+                initApp(false);
+            }
+
+            const videoEl = document.getElementById('mainVideoPlayer');
+            videoEl.addEventListener('play', syncPlayPauseIcon);
+            videoEl.addEventListener('pause', syncPlayPauseIcon);
+
+            document.getElementById('volumeSlider').addEventListener('input', (e) => {
+                const video = document.getElementById('mainVideoPlayer');
+                video.volume = e.target.value;
+                video.muted = (e.target.value == 0);
+                syncMuteIcon();
+            });
+
+            setInterval(() => {
+                const now = new Date();
+                document.getElementById('currentTime').innerText = now.toLocaleTimeString();
+                document.getElementById('currentDate').innerText = now.toLocaleDateString(undefined, { month: 'short', day: '2-digit', year: 'numeric' });
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

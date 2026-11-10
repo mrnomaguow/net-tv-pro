@@ -1,0 +1,31 @@
+Categories:
+  - Multimedia
+License: Apache-2.0
+AuthorName: Elijah Wougamon
+SourceCode: https://github.com/mrnomaguow/net-tv-pro
+IssueTracker: https://github.com/mrnomaguow/net-tv-pro/issues
+
+AutoName: NetTV Pro
+Description: |-
+  NetTV Pro is a live TV player and DVR studio for your phone. Watch
+  free live streams, browse channels, check the programme guide, and
+  schedule and keep recordings. It includes preset free channels and
+  can search the public IPTV-org directory to find and add more
+  stations, import channels from an M3U playlist, and play video
+  fullscreen with Prev / Next channel buttons.
+
+RepoType: git
+Repo: https://github.com/mrnomaguow/net-tv-pro
+
+Builds:
+  - versionName: 1.0.0
+    versionCode: 1
+    commit: PLACEHOLDER_FULL_COMMIT_HASH
+    gradle:
+      - yes
+    output: app/build/outputs/apk/release/app-release-unsigned.apk
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 1.0.0
+CurrentVersionCode: 1

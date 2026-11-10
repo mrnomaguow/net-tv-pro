@@ -1,0 +1,13 @@
+NetTV Pro is a live TV player and cloud DVR studio for your phone. Watch free live streams, browse channels, check the programme guide, and schedule and keep recordings — all in one app.
+
+Features:
+- Live TV with HLS playback
+- Preset free channels, plus search the public IPTV-org directory to find and add more stations
+- Programme guide (EPG) for the current hour
+- Scheduled recording and a DVR library stored on your device
+- Import your own channels from an M3U playlist
+- Prev / Next channel buttons, in the player controls and in a bar under the video
+- Real fullscreen video, with a fallback in the page itself
+- Respects the status bar and navigation bar — no content hidden under the clock or the menu bar
+
+This app is only a player. The preset channels are other broadcasters' free public streams, and the Find Stations search lists streams from the public IPTV-org directory.
